@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>出貨查詢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --bg: #e9f0f9;
+    --surface: #ffffff;
+    --ink: #12233b;
+    --muted: #5a6c85;
+    --line: #d0dcec;
+    --accent: #1f5fbf;
+    --accent-soft: #dce8fa;
+    --wait: #a85d0b;
+    --wait-soft: #fbeedb;
+    --err: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1521;
+      --surface: #152133;
+      --ink: #e6edf8;
+      --muted: #8fa2bc;
+      --line: #25354d;
+      --accent: #7db0f4;
+      --accent-soft: #1a2e4c;
+      --wait: #f0a64a;
+      --wait-soft: #3a2a14;
+      --err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.6;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  main { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 15px; font-weight: 500; color: var(--muted); margin: 4px 0 14px; }
+
+  /* 狀態卡：這頁最重要的資訊 */
+  .status {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 20px 18px 18px;
+    border: 1px solid var(--line);
+  }
+  .hello { font-size: 14px; color: var(--muted); margin: 0; }
+  .headline { font-size: 24px; font-weight: 700; margin: 2px 0 2px; }
+  .headline.done { color: var(--accent); }
+  .headline.wait { color: var(--wait); }
+  .sub { font-size: 14px; color: var(--muted); margin: 0; }
+
+  .track { list-style: none; display: flex; margin: 20px 0 0; padding: 0; }
+  .track li { flex: 1; position: relative; text-align: center; font-size: 13px; color: var(--muted); padding-top: 22px; }
+  .track li::before {
+    content: ""; position: absolute; top: 4px; left: 50%;
+    width: 12px; height: 12px; margin-left: -6px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--line); z-index: 1;
+  }
+  .track li::after {
+    content: ""; position: absolute; top: 9px; left: -50%; width: 100%; height: 2px; background: var(--line);
+  }
+  .track li:first-child::after { display: none; }
+  .track li.on { color: var(--ink); font-weight: 500; }
+  .track li.on::before { background: var(--accent); border-color: var(--accent); }
+  .track li.on::after { background: var(--accent); }
+
+  .ship {
+    display: grid; grid-template-columns: auto 1fr; gap: 6px 14px;
+    margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px;
+  }
+  .ship dt { color: var(--muted); }
+  .ship dd { margin: 0; word-break: break-all; }
+
+  /* 明細 */
+  .list { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 12px; padding: 4px 18px; }
+  .list h2 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 14px 0 4px; }
+  .item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .item:last-of-type { border-bottom: 0; }
+  .name { font-weight: 500; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .tag { display: inline-block; font-size: 12px; padding: 0 8px; margin-left: 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 500; vertical-align: 1px; }
+  .amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .sum { border-top: 1px solid var(--line); padding: 12px 0 14px; font-size: 14px; }
+  .sum div { display: flex; justify-content: space-between; padding: 2px 0; font-variant-numeric: tabular-nums; }
+  .sum .grand { font-size: 18px; font-weight: 700; padding-top: 8px; }
+  .note { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--wait-soft); font-size: 14px; white-space: pre-wrap; }
+
+  /* 載入與錯誤 */
+  .state { text-align: center; padding: 64px 12px; color: var(--muted); }
+  .state.err { color: var(--err); }
+  .spin { width: 28px; height: 28px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: r .8s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  button.retry { margin-top: 16px; font: inherit; color: #fff; background: var(--accent); border: 0; border-radius: 10px; padding: 10px 22px; cursor: pointer; }
+  @media (prefers-color-scheme: dark) { button.retry { color: #0b1a2e; } }
+  button.retry:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>出貨查詢</h1>
+  <div id="app"><div class="state"><div class="spin"></div>正在確認你的 LINE 身分…</div></div>
+</main>
+
+<script>
+/* ===== 只需要改這兩行 ===== */
+const LIFF_ID = '';   // LIFF 後台的 LIFF ID，例如 1234567890-AbCdEfGh
+const API_URL = '';   // Apps Script 部署後的網頁應用程式網址（結尾 /exec）
+/* ======================== */
+
+const app = document.getElementById('app');
+const yen = n => 'NT$ ' + Number(n || 0).toLocaleString('zh-TW');
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function clear() { app.replaceChildren(); }
+
+function showLoading(msg) {
+  clear();
+  const s = el('div', 'state');
+  s.append(el('div', 'spin'), document.createTextNode(msg));
+  app.append(s);
+}
+function showError(msg) {
+  clear();
+  const s = el('div', 'state err', msg);
+  const b = el('button', 'retry', '重新載入');
+  b.type = 'button';
+  b.onclick = () => location.reload();
+  s.append(document.createElement('br'), b);
+  app.append(s);
+}
+
+async function main() {
+  if (!LIFF_ID || !API_URL) { showError('頁面尚未設定 LIFF ID 或 API 網址。'); return; }
+  try {
+    await liff.init({ liffId: LIFF_ID });
+  } catch (e) {
+    showError('LIFF 初始化失敗，請從 LINE 內開啟。'); return;
+  }
+  if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+
+  const idToken = liff.getIDToken();
+  if (!idToken) { liff.logout(); liff.login({ redirectUri: location.href }); return; }
+
+  showLoading('正在查詢你的訂單…');
+  let data;
+  try {
+    // 用 text/plain 避免瀏覽器的 CORS 預檢，Apps Script 才收得到
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ idToken: idToken }),
+      redirect: 'follow'
+    });
+    data = await res.json();
+  } catch (e) {
+    showError('連線失敗，請檢查網路後重新載入。'); return;
+  }
+
+  if (!data.ok) {
+    if (data.reauth) {
+      // ID Token 過期：登出後重新登入一次
+      const k = 'liff_reauth';
+      if (!sessionStorage.getItem(k)) {
+        sessionStorage.setItem(k, '1');
+        liff.logout(); liff.login({ redirectUri: location.href }); return;
+      }
+      sessionStorage.removeItem(k);
+    }
+    showError(data.error || '查詢失敗。'); return;
+  }
+  sessionStorage.removeItem('liff_reauth');
+  render(data);
+}
+
+function render(d) {
+  clear();
+  const shipped = !!d.date;
+  const step = shipped ? 3 : (d.paid ? 2 : 1);
+
+  /* 狀態卡 */
+  const card = el('section', 'status');
+  card.append(el('p', 'hello', (d.nick || '') + ' 你好'));
+  const h = el('p', 'headline ' + (shipped ? 'done' : 'wait'),
+    shipped ? '已安排出貨' : (d.paid ? '已收到匯款，等待出貨' : '尚未收到匯款'));
+  card.append(h);
+  card.append(el('p', 'sub', shipped ? '出貨日期 ' + d.date : (d.paid ? '出貨日期確定後會顯示在這裡' : '匯款後等小編核對，狀態會更新')));
+
+  const track = el('ol', 'track');
+  ['已喊單', '已匯款', '已出貨'].forEach((t, i) => {
+    track.append(el('li', i < step ? 'on' : '', t));
+  });
+  card.append(track);
+
+  if (d.orderNo) {
+    const dl = el('dl', 'ship');
+    dl.append(el('dt', null, '出貨單號'), el('dd', null, d.orderNo));
+    card.append(dl);
+  }
+  app.append(card);
+
+  /* 明細 */
+  const list = el('section', 'list');
+  list.append(el('h2', null, '喊單明細（' + d.items.length + ' 項）'));
+  let sub = 0;
+  d.items.forEach(it => {
+    sub += it.total;
+    const row = el('div', 'item');
+    const left = el('div');
+    const nm = el('div', 'name', it.name);
+    if (it.arrival) nm.append(el('span', 'tag', it.arrival));
+    left.append(nm, el('div', 'meta', yen(it.price) + ' × ' + it.qty + (it.time ? '　' + it.time : '')));
+    row.append(left, el('div', 'amt', yen(it.total)));
+    list.append(row);
+  });
+
+  const sum = el('div', 'sum');
+  const line = (a, b, cls) => { const r = el('div', cls); r.append(el('span', null, a), el('span', null, b)); sum.append(r); };
+  line('商品小計', yen(sub));
+  if (d.extra) line('二補費用', yen(d.extra));
+  line(d.paid ? '合計（已匯款）' : '合計', yen(sub + (d.extra || 0)), 'grand');
+  list.append(sum);
+  app.append(list);
+
+  if (d.note) app.append(el('div', 'note', d.note));
+}
+
+main();
+</script>
+</body>
+</html>
